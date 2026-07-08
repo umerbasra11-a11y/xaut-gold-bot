@@ -5,6 +5,7 @@ import time
 import os
 import threading
 from flask import Flask
+import telebot # ye line add ki hai
 
 app = Flask(__name__)
 
@@ -21,6 +22,17 @@ CHECK_INTERVAL = 3600 # 3600 seconds = 1 hour
 # ENV se token lena best hai. Warna yahan daal do
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8730890284:AAFeHlDxc2fBX9xMh9E21KwZNyZ4vI3WXp8")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "8339681150")
+
+bot = telebot.TeleBot(TELEGRAM_TOKEN) # ye line add ki hai
+
+# ===== YE NAYA HISSA ADD KIYA HAI =====
+@bot.message_handler(commands=['start'])
+def start(message):
+    bot.reply_to(message, "✅ Gold Signal Bot Started\n⏰ Har 1 ghante baad market check ho ga\n📊 Timeframe: 15 Min")
+
+def run_bot():
+    bot.infinity_polling()
+# =======================================
 
 def send_telegram_alert(message, retries=3):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -126,7 +138,7 @@ def check_signal():
         if entry!= stop_loss:
             risk_amount = ACCOUNT_BALANCE * (RISK_PERCENT / 100)
             pos_size = risk_amount / abs(entry - stop_loss)
-            telegram_msg = f"🚀 <b>XAUT/USDT BUY SIGNAL</b> 🟢\n\n<b>Entry:</b> ${round(entry, 2)}\n<b>Stop Loss:</b> ${stop_loss}\n<b>Take Profit:</b> ${take_profit}\n<b>R:R:</b> 1 : 2.0\n\n<b>ATR:</b> {round(last_atr, 2)} | <b>RSI:</b> {round(last_rsi, 1)}\n\n<i>{reason}</i>"
+            telegram_msg = f"🚀 <b>XAUT/USDT BUY SIGNAL</b> 🟢\n\n<b>Entry:</b> ${round(entry, 2)}\n<b>Stop Loss:</b> ${stop_loss}\n<b>Take Profit:</b> ${take_profit}\n<b>R:R:</b> 1 : 2.0\n<b>ATR:</b> {round(last_atr, 2)} | <b>RSI:</b> {round(last_rsi, 1)}\n\n<i>{reason}</i>"
             send_telegram_alert(telegram_msg)
     elif signal == "SHORT":
         entry = last_close
@@ -161,4 +173,5 @@ def home():
 
 if __name__ == "__main__":
     threading.Thread(target=bot_loop, daemon=True).start()
+    threading.Thread(target=run_bot, daemon=True).start() # ye line change ki hai
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
