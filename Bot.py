@@ -5,7 +5,7 @@ import time
 import os
 import threading
 from flask import Flask
-import telebot # ye line add ki hai
+import telebot
 
 app = Flask(__name__)
 
@@ -17,22 +17,19 @@ print("Check: Har 1 Ghanta | Telegram Alerts: ON ✅")
 ACCOUNT_BALANCE = 100
 RISK_PERCENT = 1
 ATR_MIN = 3
-CHECK_INTERVAL = 3600 # 3600 seconds = 1 hour
+CHECK_INTERVAL = 3600
 
-# ENV se token lena best hai. Warna yahan daal do
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8730890284:AAFeHlDxc2fBX9xMh9E21KwZNyZ4vI3WXp8")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "8339681150")
 
-bot = telebot.TeleBot(TELEGRAM_TOKEN) # ye line add ki hai
+bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
-# ===== YE NAYA HISSA ADD KIYA HAI =====
 @bot.message_handler(commands=['start'])
 def start(message):
     bot.reply_to(message, "✅ Gold Signal Bot Started\n⏰ Har 1 ghante baad market check ho ga\n📊 Timeframe: 15 Min")
 
 def run_bot():
     bot.infinity_polling()
-# =======================================
 
 def send_telegram_alert(message, retries=3):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -43,12 +40,9 @@ def send_telegram_alert(message, retries=3):
             if response.status_code == 200:
                 print("📲 Telegram alert bhej diya ✅")
                 return True
-            else:
-                print(f"📲 Telegram Error - Retry {attempt+1}/{retries}... Status: {response.status_code}")
         except Exception as e:
             print(f"📲 Telegram Error - Retry {attempt+1}/{retries}... {e}")
         time.sleep(5)
-    print("📲 Telegram pe message nahi gaya. Bot chalta rahe ga")
     return False
 
 def calculate_atr(df, period=14):
@@ -90,7 +84,6 @@ def check_signal():
     df = get_gold_data()
     if df is None or df.empty:
         send_telegram_alert("⚠️ Bot Alive\nData nahi mila. Next check: 1 ghante baad")
-        print("Data nahi mila")
         return
 
     df['EMA20'] = df['close'].ewm(span=20, adjust=False).mean()
@@ -105,11 +98,7 @@ def check_signal():
     last_atr, last_rsi = last['ATR'], last['RSI']
     prev_ema20, prev_ema50 = prev['EMA20'], prev['EMA50']
 
-    print(f"\n{'='*48}")
-    print(f"Time : {datetime.now().strftime('%H:%M:%S')}")
-    print(f"Price : ${last_close}")
-    print(f"EMA20: {round(last_ema20,2)} | EMA50: {round(last_ema50,2)} | ATR: {round(last_atr,2)}")
-    print(f"RSI : {round(last_rsi, 1)}")
+    print(f"\nTime : {datetime.now().strftime('%H:%M:%S')} | Price : ${last_close}")
 
     signal = "WAIT"
     atr_ok = last_atr > ATR_MIN
@@ -135,36 +124,26 @@ def check_signal():
         entry = last_close
         stop_loss = round(entry - (last_atr * 1.5), 2)
         take_profit = round(entry + (last_atr * 3), 2)
-        if entry!= stop_loss:
-            risk_amount = ACCOUNT_BALANCE * (RISK_PERCENT / 100)
-            pos_size = risk_amount / abs(entry - stop_loss)
-            telegram_msg = f"🚀 <b>XAUT/USDT BUY SIGNAL</b> 🟢\n\n<b>Entry:</b> ${round(entry, 2)}\n<b>Stop Loss:</b> ${stop_loss}\n<b>Take Profit:</b> ${take_profit}\n<b>R:R:</b> 1 : 2.0\n<b>ATR:</b> {round(last_atr, 2)} | <b>RSI:</b> {round(last_rsi, 1)}\n\n<i>{reason}</i>"
-            send_telegram_alert(telegram_msg)
+        telegram_msg = f"🚀 <b>XAUT/USDT BUY SIGNAL</b> 🟢\n\n<b>Entry:</b> ${round(entry, 2)}\n<b>SL:</b> ${stop_loss}\n<b>TP:</b> ${take_profit}\n<b>ATR:</b> {round(last_atr, 2)} | <b>RSI:</b> {round(last_rsi, 1)}\n\n<i>{reason}</i>"
+        send_telegram_alert(telegram_msg)
     elif signal == "SHORT":
         entry = last_close
         stop_loss = round(entry + (last_atr * 1.5), 2)
         take_profit = round(entry - (last_atr * 3), 2)
-        if entry!= stop_loss:
-            risk_amount = ACCOUNT_BALANCE * (RISK_PERCENT / 100)
-            pos_size = risk_amount / abs(stop_loss - entry)
-            telegram_msg = f"📉 <b>XAUT/USDT SELL SIGNAL</b> 🔴\n\n<b>Entry:</b> ${round(entry, 2)}\n<b>Stop Loss:</b> ${stop_loss}\n<b>Take Profit:</b> ${take_profit}\n<b>R:R:</b> 1 : 2.0\n<b>ATR:</b> {round(last_atr, 2)} | <b>RSI:</b> {round(last_rsi, 1)}\n\n<i>{reason}</i>"
-            send_telegram_alert(telegram_msg)
+        telegram_msg = f"📉 <b>XAUT/USDT SELL SIGNAL</b> 🔴\n\n<b>Entry:</b> ${round(entry, 2)}\n<b>SL:</b> ${stop_loss}\n<b>TP:</b> ${take_profit}\n<b>ATR:</b> {round(last_atr, 2)} | <b>RSI:</b> {round(last_rsi, 1)}\n\n<i>{reason}</i>"
+        send_telegram_alert(telegram_msg)
     else:
         alive_msg = f"✅ <b>Bot Alive</b>\n\n⏳ SIGNAL : WAIT 🟡\n<b>Reason:</b> {reason}\n<b>Price:</b> ${round(last_close,2)}\n<b>ATR:</b> {round(last_atr,2)} | <b>RSI:</b> {round(last_rsi,1)}\n\nNext check: 1 ghante baad"
         send_telegram_alert(alive_msg)
-        print(f"\n⏳ SIGNAL : WAIT 🟡 - {reason}")
-    print(f"{'='*48}")
 
 def bot_loop():
     send_telegram_alert("✅ <b>Gold Signal Bot Started</b>\n\n⏰ Har 1 ghante baad market check ho ga\n📊 Timeframe: 15 Min")
     while True:
         try:
             check_signal()
-            print(f"Agla check 1 ghante baad... {datetime.now().strftime('%H:%M:%S')}")
             time.sleep(CHECK_INTERVAL)
         except Exception as e:
             print(f"Error: {e}")
-            send_telegram_alert(f"⚠️ Bot Error: {e}\n5 min me restart ho raha...")
             time.sleep(300)
 
 @app.route('/')
@@ -173,5 +152,5 @@ def home():
 
 if __name__ == "__main__":
     threading.Thread(target=bot_loop, daemon=True).start()
-    threading.Thread(target=run_bot, daemon=True).start() # ye line change ki hai
+    threading.Thread(target=run_bot, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
