@@ -141,7 +141,7 @@ def check_signal():
         send_telegram_alert(msg)
 
 def bot_loop():
-    send_telegram_alert("✅ <b>ULTIMATE Gold Bot Restarted</b>\nHar 15 min baad check | Volume + S/R + 1H Filter ON")
+    send_telegram_alert("✅ <b>Ultimate Gold Signal Bot Restarted</b>\n\n⏰ Har 15 Min baad market check ho ga\n📊 Timeframe: 15 Min")
     while True:
         try: check_signal(); time.sleep(CHECK_INTERVAL)
         except Exception as e: print(f"Error: {e}"); time.sleep(60)
