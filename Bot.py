@@ -4,8 +4,7 @@ from datetime import datetime
 import time
 import os
 import threading
-from flask import Flask
-import telebot
+from flask import Flask, request
 
 app = Flask(__name__)
 
@@ -22,14 +21,13 @@ CHECK_INTERVAL = 3600
 TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8730890284:AAFeHlDxc2fBX9xMh9E21KwZNyZ4vI3WXp8")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "8339681150")
 
-bot = telebot.TeleBot(TELEGRAM_TOKEN)
-
-@bot.message_handler(commands=['start'])
-def start(message):
-    bot.reply_to(message, "✅ Gold Signal Bot Started\n⏰ Har 1 ghante baad market check ho ga\n📊 Timeframe: 15 Min")
-
-def run_bot():
-    bot.infinity_polling()
+def send_telegram_message(chat_id, text):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    data = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+    try:
+        requests.post(url, data=data, timeout=15)
+    except Exception as e:
+        print(f"Telegram Error: {e}")
 
 def send_telegram_alert(message, retries=3):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -150,7 +148,16 @@ def bot_loop():
 def home():
     return "Bot is alive and checking XAUT/USDT every 1 hour ✅"
 
+@app.route('/' + TELEGRAM_TOKEN, methods=['POST'])
+def webhook():
+    data = request.get_json()
+    if 'message' in data and 'text' in data['message']:
+        chat_id = data['message']['chat']['id']
+        text = data['message']['text']
+        if text == '/start':
+            send_telegram_message(chat_id, "✅ Gold Signal Bot Started\n⏰ Har 1 ghante baad market check ho ga\n📊 Timeframe: 15 Min")
+    return 'ok', 200
+
 if __name__ == "__main__":
     threading.Thread(target=bot_loop, daemon=True).start()
-    threading.Thread(target=run_bot, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
