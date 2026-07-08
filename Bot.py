@@ -4,44 +4,29 @@ from datetime import datetime
 import time
 import os
 import threading
-from flask import Flask, request
+from flask import Flask
 
 app = Flask(__name__)
 
 print("Gold Signal Bot Start Ho Gaya - Render Pe...")
 print("MEXC Futures se XAUT_USDT ka rate laa raha hai...")
-print("Timeframe: 15 Min | EMA20/50 | RSI Filter ON | ATR > 3")
-print("Check: Har 1 Ghanta | Telegram Alerts: ON ✅")
 
 ACCOUNT_BALANCE = 100
 RISK_PERCENT = 1
 ATR_MIN = 3
 CHECK_INTERVAL = 3600
 
-TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN", "8730890284:AAFeHlDxc2fBX9xMh9E21KwZNyZ4vI3WXp8")
-TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "8339681150")
+TELEGRAM_TOKEN = "8730890284:AAFeHlDxc2fBX9xMh9E21KwZNyZ4vI3WXp8"
+TELEGRAM_CHAT_ID = "8339681150"
 
-def send_telegram_message(chat_id, text):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    data = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
-    try:
-        requests.post(url, data=data, timeout=15)
-    except Exception as e:
-        print(f"Telegram Error: {e}")
-
-def send_telegram_alert(message, retries=3):
+def send_telegram_alert(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     data = {"chat_id": TELEGRAM_CHAT_ID, "text": message, "parse_mode": "HTML"}
-    for attempt in range(retries):
-        try:
-            response = requests.post(url, data=data, timeout=15)
-            if response.status_code == 200:
-                print("📲 Telegram alert bhej diya ✅")
-                return True
-        except Exception as e:
-            print(f"📲 Telegram Error - Retry {attempt+1}/{retries}... {e}")
-        time.sleep(5)
-    return False
+    try:
+        requests.post(url, data=data, timeout=15)
+        print("📲 Telegram alert bhej diya ✅")
+    except Exception as e:
+        print(f"📲 Telegram Error: {e}")
 
 def calculate_atr(df, period=14):
     high_low = df['high'] - df['low']
@@ -80,9 +65,7 @@ def get_gold_data():
 
 def check_signal():
     df = get_gold_data()
-    if df is None or df.empty:
-        send_telegram_alert("⚠️ Bot Alive\nData nahi mila. Next check: 1 ghante baad")
-        return
+    if df is None or df.empty: return
 
     df['EMA20'] = df['close'].ewm(span=20, adjust=False).mean()
     df['EMA50'] = df['close'].ewm(span=50, adjust=False).mean()
@@ -91,31 +74,24 @@ def check_signal():
     df = df.dropna()
     if len(df) < 2: return
 
-    last, prev = df.iloc[-1], df.iloc[-2]
+    last = df.iloc[-1]
     last_close, last_ema20, last_ema50 = last['close'], last['EMA20'], last['EMA50']
     last_atr, last_rsi = last['ATR'], last['RSI']
-    prev_ema20, prev_ema50 = prev['EMA20'], prev['EMA50']
 
-    print(f"\nTime : {datetime.now().strftime('%H:%M:%S')} | Price : ${last_close}")
+    print(f"Time : {datetime.now().strftime('%H:%M:%S')} | Price : ${last_close}")
 
     signal = "WAIT"
     atr_ok = last_atr > ATR_MIN
-    ema_cross_up = prev_ema20 <= prev_ema50 and last_ema20 > last_ema50
-    ema_bull_trend = last_ema20 > last_ema50 and last_close > last_ema20
+    ema_bull = last_ema20 > last_ema50 and last_close > last_ema20
+    ema_bear = last_ema20 < last_ema50 and last_close < last_ema20
     rsi_ok_long = 35 < last_rsi < 68
-    ema_cross_down = prev_ema20 >= prev_ema50 and last_ema20 < last_ema50
-    ema_bear_trend = last_ema20 < last_ema50 and last_close < last_ema20
     rsi_ok_short = 32 < last_rsi < 65
 
     if not atr_ok: reason = f"ATR {round(last_atr,2)} hai — slow market"
-    elif ema_cross_up and rsi_ok_long:
-        signal, reason = "LONG", "EMA20 ne EMA50 ko cross kiya upar!"
-    elif ema_bull_trend and rsi_ok_long and last_rsi < 55:
-        signal, reason = "LONG", "Uptrend chal raha hai"
-    elif ema_cross_down and rsi_ok_short:
-        signal, reason = "SHORT", "EMA20 ne EMA50 ko cross kiya neeche!"
-    elif ema_bear_trend and rsi_ok_short and last_rsi > 45:
-        signal, reason = "SHORT", "Downtrend chal raha hai"
+    elif ema_bull and rsi_ok_long:
+        signal, reason = "LONG", "Uptrend + RSI OK"
+    elif ema_bear and rsi_ok_short:
+        signal, reason = "SHORT", "Downtrend + RSI OK"
     else: reason = "Market sideways hai. Wait karo."
 
     if signal == "LONG":
@@ -135,7 +111,7 @@ def check_signal():
         send_telegram_alert(alive_msg)
 
 def bot_loop():
-    send_telegram_alert("✅ <b>Gold Signal Bot Started</b>\n\n⏰ Har 1 ghante baad market check ho ga\n📊 Timeframe: 15 Min")
+    send_telegram_alert("✅ <b>Gold Signal Bot Restarted</b>\n\n⏰ Har 1 ghante baad market check ho ga\n📊 Timeframe: 15 Min")
     while True:
         try:
             check_signal()
@@ -147,16 +123,6 @@ def bot_loop():
 @app.route('/')
 def home():
     return "Bot is alive and checking XAUT/USDT every 1 hour ✅"
-
-@app.route('/' + TELEGRAM_TOKEN, methods=['POST'])
-def webhook():
-    data = request.get_json()
-    if 'message' in data and 'text' in data['message']:
-        chat_id = data['message']['chat']['id']
-        text = data['message']['text']
-        if text == '/start':
-            send_telegram_message(chat_id, "✅ Gold Signal Bot Started\n⏰ Har 1 ghante baad market check ho ga\n📊 Timeframe: 15 Min")
-    return 'ok', 200
 
 if __name__ == "__main__":
     threading.Thread(target=bot_loop, daemon=True).start()
